@@ -1,86 +1,84 @@
-# https://freedium.cfd/https://blog.stackademic.com/building-a-smart-city-an-end-to-end-big-data-engineering-project-7a3d9a6ab104
-# https://www.youtube.com/watch?v=Vv_fvwF41_0&ab_channel=CodeWithYu
-version: '1'
-
-x-spark-common: &spark-common
-  image: bitnami/spark:latest
-  volumes:
-    - ./jobs:/opt/bitnami/spark/jobs
-  command: bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077 # this is the worker and the spark URl
-  depends_on:
-    - spark-master
-  environment:
-    SPARK_MODE: worker
-    SPARK_WORKER_CORES: 2       # if you have more compute these cores can be increased. that will decrease time needed
-    SPARK_WORKER_MEMORY: 1g     # mim of 1GB needed otherwise worker will not work
-    SPARK_MASTER_URL: spark://spark-master:7077
-  networks:
-    - datamasterylab
-  
+version: '3'
 
 services:
 # Zookeeper maintain config info, naming, dist synch and group services.
 # For Kafka Zookeeper manages/coordinates Kafka brokers by leader election for partitions
 # maintain track of status of Kafka cluster nodes & list of Kafka topics and messages.
   zookeeper:
-        image: confluentinc/cp-zookeeper:7.4.0
-        hostname: zookeeper
-        container_name: zookeeper
-        ports:
-          - "2181:2181" # Zookeeper's default client connection port
-        environment:
-          ZOOKEEPER_CLIENT_PORT: 2181 # for client connection 
-          ZOOKEEPER_TICK_TIME: 2000 # ms (1000ms = 1sec) the base time unit
-        healthcheck: 
-        # to ensure the zookeeper is ready to accept connection before continuing
-          test: ['CMD', 'bash', '-c', "echo 'Are you ok?' | nc localhost 2181"]
-          interval: 10s # runs every 10 sec with 5sec timeout and 5 retires
-          timeout: 5s 
-          retries: 5
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181" # Zookeeper's default client connection port
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181 # for client connection 
+      ZOOKEEPER_TICK_TIME: 2000 # ms (1000ms = 1sec) the base time unit
+    healthcheck: 
+    # to ensure the zookeeper is ready to accept connection before continuing
+      test: ['CMD', 'bash', '-c', "echo 'Are you ok?' | nc localhost 2181"]
+      interval: 10s # runs every 10 sec with 5sec timeout and 5 retires
+      timeout: 5s 
+      retries: 5
+    networks:
+      - datamasterylab
 
 # for streaming real time data = KAFKA
 # Can publish, subscribe to, store, and process streams of records in real-time
   broker:
-    image: confluentinc/cp-server:7.4.0
-    hostname: broker
-    container_name: broker
-    # dependence upon a heealthy zookeeper
-    depends_on:
-      zookeeper:
-      # if the healthcheck for zookeper is not healthy then kafka is not going to run
-        condition: service_healthy
-    ports:
-      - "9092:9092" # Internal/external IP/port
-      - "9101:9101" # jmx (java monitoring extensions)
-    environment:
-      KAFKA_BROKER_ID: 1                                                                       # we have one kafka broker with ID 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'                                                # which port it will connect with zookeeper on
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT       #
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092     # ports where kafka will be listening
-      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter           # if you are not using confluence this is not needed
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1                                                #
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_JMX_PORT: 9101                                                                      # JMX monitoring
-      KAFKA_JMX_HOSTNAME: localhost
-      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://schema-registry:8081                          # we are not really using this 
-      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: broker:29092                                # all of the rest are confluenct specific
-      CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
-      CONFLUENT_METRICS_ENABLE: 'false'
-      CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
-    networks:
-      - datamasterylab
-    healthcheck:
-      test: [ "CMD", "bash", "-c", 'nc -z localhost 9092' ]                                     # pinging 9092 to see if its ready to accept connection
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      image: confluentinc/cp-server:7.4.0
+      hostname: broker
+      container_name: broker
+      # dependence upon a heealthy zookeeper
+      depends_on:
+        zookeeper:
+        # if the healthcheck for zookeper is not healthy then kafka is not going to run
+          condition: service_healthy
+      ports:
+        - "9092:9092" # Internal/external IP/port
+        - "9101:9101" # jmx (java monitoring extensions)
+      environment:
+        KAFKA_BROKER_ID: 1                                                                       # we have one kafka broker with ID 1
+        KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'                                                # which port it will connect with zookeeper on
+        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT       #
+        KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092     # ports where kafka will be listening
+        KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter           # if you are not using confluence this is not needed
+        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1                                                #
+        KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+        KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+        KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+        KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+        KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+        KAFKA_JMX_PORT: 9101                                                                      # JMX monitoring
+        KAFKA_JMX_HOSTNAME: localhost
+        KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://schema-registry:8081                          # we are not really using this 
+        CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: broker:29092                                # all of the rest are confluenct specific
+        CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+        CONFLUENT_METRICS_ENABLE: 'false'
+        CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
+      networks:
+        - datamasterylab
+      healthcheck:
+        test: [ "CMD", "bash", "-c", 'nc -z localhost 9092' ]                                     # pinging 9092 to see if its ready to accept connection
+        interval: 10s
+        timeout: 5s
+        retries: 5
 
 # We need a spark master and spark worker. But the properties are almost the same
 # we can can create a small so that spark worker can inherit the the same module == "x-spark-common"
+  x-spark-common: &spark-common
+    image: bitnami/spark:latest
+    volumes:
+      - ./jobs:/opt/bitnami/spark/jobs
+    command: bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077 # this is the worker and the spark URl
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_MODE: worker
+      SPARK_WORKER_CORES: 2       # if you have more compute these cores can be increased. that will decrease time needed
+      SPARK_WORKER_MEMORY: 1g     # mim of 1GB needed otherwise worker will not work
+      SPARK_MASTER_URL: spark://spark-master:7077
+    networks:
+      - datamasterylab
 
   spark-master:
       image: bitnami/spark:latest
@@ -98,4 +96,6 @@ services:
     <<: *spark-common
 
 networks:
-  - datamasterylab  
+  # - datamasterylab 
+  datamasterylab:
+    driver: bridge
