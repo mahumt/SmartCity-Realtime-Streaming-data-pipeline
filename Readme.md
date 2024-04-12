@@ -9,9 +9,11 @@ Project aims to collect data from IoT (Internet of Things) simulated devices. Da
 5. Activate virtual environment .
 6. Create docker-compose file with zookeeper, kafka, spark (master and workers). Keep them all on the same network so that they can interact with each other.
 7. Create `main.py` file where data is simulated for the journey.
-8. 
-9. 
-10. Keep pushing code to git/githbu on interval
+8. When the data is ready to be ingested in Kafka. Create Kafka functions nad after running main.py check in Kafka using Docker's `broker` image -> `exec` -> command `kafka-topic --list bootsrap-server broker:2902`
+9. Check for one of the topics `kafka-console-consumer --topic vehicle_data --boostrap-server broker:9092 --from-beginning`. Production of data and ingestion into KAFKA is now complete
+10. Create AWS account and create S3 bucket (diasble block all public access). Download AWS CLI. We can now start working on consuming the stream from Kafka into Spark.
+11. Create `config.py` in jobs to configure AWS access. Use powershell `New-Item jobs/config.py` (subsitute of linux `touch`)
+. Keep pushing code to git/github on interval
 ```
 git remote -v
 git remote add origin https://github.com/<user>/<user_repository>

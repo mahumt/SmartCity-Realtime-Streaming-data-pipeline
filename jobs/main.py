@@ -1,9 +1,6 @@
-# simulate_vehicle_movement() takes 0 positional arguments but 1 was given
-# .isoformat()
-
 import os
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 from confluent_kafka import SerializingProducer
@@ -30,14 +27,12 @@ TRAFFIC_TOPIC          = os.getenv('TRAFFIC_TOPIC', 'traffic_data')
 EMERGENY               = os.getenv('EMERGENCY_TOPIC', 'emergency_data')
 WEATHER_TOPIC          = os.getenv('WEATHER_TOPIC', 'weather_data')
 
-start_time = datetime.now()
 start_location = LONDON_COORDINATES.copy()
+start_time = datetime.now()
+start_time += timedelta(seconds = random.randrange(30, 60))
+# start_time += timedelta(seconds = random.randint(30, 60)) # update the frequency
 
-def get_next_time():
-    global start_time
-    start_time += timedelta(seconds = random.randint(30, 60)) # update the frequency
-
-def simulate_vehicle_movement(device_id):
+def simulate_vehicle_movement():
     global start_location
 
     # then move towards birmingham
@@ -51,11 +46,11 @@ def simulate_vehicle_movement(device_id):
     return start_location
 
 def generate_vehicle_data(device_id):
-    location = simulate_vehicle_movement(device_id)
+    location = simulate_vehicle_movement()
     return {
         'id': uuid.uuid4(),
         'deviceId': device_id,
-        'timestamp': get_next_time(),#.isoformat(), # we want to keep increasing time as dirver moves from london to birmingham
+        'timestamp': start_time.isoformat(), # we want to keep increasing time as dirver moves from london to birmingham
         'location': (location['latitude'], location['longitude']),
         'speed': random.uniform(10, 40), # not too slow or fast
         'direction': 'North-East',
@@ -114,6 +109,26 @@ def generate_emergency_incident_data(device_id, timestamp, location):
         'description': 'Description of the incident'
     }
 
+def json_serializer(obj):
+    if isinstance(obj, uuid.UUID):
+        return str(obj)
+    raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
+
+def delivery_report(err, msg):
+    if err is not None:
+        print(f'Message delivery failed: {err}')
+    else:
+        print(f'Message delivered to {msg.topic()} {msg.partition()}')
+
+def produce_data_to_kafka(producer, topic, data):
+    producer.produce(
+        topic,
+        key=str(data['id']), #converting UUID into string
+        value=json.dumps(data, default=json_serializer).encode('utf-8'),
+        on_delivery=delivery_report
+    )
+    producer.flush() # so data can get flushed
+
 def simulate_journey(producer, device_id):
     while True:
         # timestamp to be unique across all IoT
@@ -122,28 +137,24 @@ def simulate_journey(producer, device_id):
         traffic_camera_data     = generate_traffic_camera_data(device_id, vehicle_data['timestamp'], vehicle_data['location'], camera_id='Nikon_Camera123')
         emergency_incident_data = generate_emergency_incident_data(device_id, vehicle_data['timestamp'], vehicle_data['location'])
         weather_data            = generate_weather_data(device_id, vehicle_data['timestamp'], vehicle_data['location'])
+        
         print(vehicle_data)
         print(gps_data)
         print(traffic_camera_data)
         print(emergency_incident_data)
         print(weather_data)
         
-        break
+        if(vehicle_data['location'][0] >= BIRMINGHAM_COORDINATES['latitude']
+                and vehicle_data['location'][1] <= BIRMINGHAM_COORDINATES['longitude']):
+            print('Vehicle has reached Birmingham')
+            break
 
-# def produce_data_to_kafka(producer, topic, data):
-#     producer.produce(
-#         topic,
-#         key=str(data['id']),
-#         value=json.dumps(data, default=json_serializer).encode('utf-8'),
-#         on_delivery=delivery_report
-#     )
-#     producer.flush()
-
-# produce_data_to_kafka(producer, VEHICLE_TOPIC, vehicle_data)
-# produce_data_to_kafka(producer, GPS_TOPIC, gps_data)
-# produce_data_to_kafka(producer, TRAFFIC_TOPIC, traffic_camera_data)
-# produce_data_to_kafka(producer, WEATHER_TOPIC, weather_data)
-# produce_data_to_kafka(producer, EMERGENCY_TOPIC, emergency_incident_data)
+        produce_data_to_kafka(producer, VEHICLE_TOPIC, vehicle_data)
+        produce_data_to_kafka(producer, GPS_TOPIC, gps_data)
+        produce_data_to_kafka(producer, TRAFFIC_TOPIC, traffic_camera_data)
+        produce_data_to_kafka(producer, WEATHER_TOPIC, weather_data)
+        produce_data_to_kafka(producer, EMERGENCY_TOPIC, emergency_incident_data)
+        time.sleep(5)
 
 # entry point
 if __name__ == "__main__" :
