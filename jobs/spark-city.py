@@ -1,4 +1,6 @@
+from msilib import schema
 from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame
 from pyspark.sql.functions import from_json, col
 from pyspark.sql.types import *
 from config import configuration
@@ -19,6 +21,7 @@ def main():
     # https://mvnrepository.com/artifact/org.apache.spark/spark-sql-kafka-0-10_2.13/3.5.0
     # https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aws/3.3.1
 
+    # Optional: to ensure not everything is printed out
     # Adjust the log level to minimize the console output on executors
     spark.sparkContext.setLogLevel('WARN')
 
@@ -96,7 +99,7 @@ def read_kafka_topic(topic, schema):
 
 # subscribe to any topic and serializing them to the schema we want. To utilize this function we call it as:
 vehicleDF = read_kafka_topic('vehicle_data', main.vehicleSchema).alias('vehicle') #from main fucn
-gpsDF = read_kafka_topic('gps_data', gpsSchema).alias('gps')
+gpsDF = read_kafka_topic('gps_data', main.gpsSchema).alias('gps')
 trafficDF = read_kafka_topic('traffic_data', trafficSchema).alias('traffic')
 weatherDF = read_kafka_topic('weather_data', weatherSchema).alias('weather')
 emergencyDF = read_kafka_topic('emergency_data', emergencySchema).alias('emergency')
@@ -126,7 +129,6 @@ query5.awaitTermination()
 # The awaitTermination function at the end of that blocks sends all the started streams on their journey to heavenly race without interference!
 
 # The next thing to do is to submit out spark job to our spark master-worker cluster.
-
 
 # docker exec -it smartcity-spark-master-1 spark-submit \
 # --master spark://spark-master:7077 \
